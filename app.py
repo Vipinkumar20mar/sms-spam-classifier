@@ -1,18 +1,27 @@
 import streamlit as st
-import pickle
-import string
-from nltk.corpus import stopwords
+import pandas as pd
 import nltk
+import string
+
+from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+
+# NLTK download
+nltk.download('punkt')
+nltk.download('stopwords')
 
 ps = PorterStemmer()
 
-
+# Text preprocessing
 def transform_text(text):
     text = text.lower()
     text = nltk.word_tokenize(text)
 
     y = []
+
     for i in text:
         if i.isalnum():
             y.append(i)
@@ -32,22 +41,43 @@ def transform_text(text):
 
     return " ".join(y)
 
-tfidf = pickle.load(open('vectorizer.pkl','rb'))
-model = pickle.load(open('model.pkl','rb'))
+# Load dataset
+df = pd.read_csv('spam.csv', encoding='latin1')
 
-st.title("Email/SMS Spam Classifier")
+df = df[['v1', 'v2']]
+df.columns = ['target', 'text']
 
-input_sms = st.text_area("Enter the message")
+# Encode target
+df['target'] = df['target'].map({'ham':0, 'spam':1})
 
-if st.button('Predict'):
+# Transform text
+df['transformed_text'] = df['text'].apply(transform_text)
 
-    # 1. preprocess
+# TF-IDF
+tfidf = TfidfVectorizer(max_features=3000)
+
+X = tfidf.fit_transform(df['transformed_text'])
+
+y = df['target']
+
+# Train model
+model = MultinomialNB()
+
+model.fit(X, y)
+
+# Streamlit UI
+st.title("SMS Spam Classifier")
+
+input_sms = st.text_area("Enter Message")
+
+if st.button("Predict"):
+
     transformed_sms = transform_text(input_sms)
-    # 2. vectorize
+
     vector_input = tfidf.transform([transformed_sms])
-    # 3. predict
+
     result = model.predict(vector_input)[0]
-    # 4. Display
+
     if result == 1:
         st.header("Spam")
     else:
